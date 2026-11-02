@@ -9,8 +9,6 @@ thermal and insulation-ageing core for a transformer digital twin. **Research pr
 
 **Live demo:** *https://anas-transformer-dga-twin01.streamlit.app/*
 
-!\[Pipeline overview](docs/images/architecture.png)
-
 ## What it does
 
 * **Diagnose a gas sample** with Duval triangle 1 and the IEC 60599 ratio method, optionally alongside a random
@@ -27,7 +25,7 @@ forest that returns a *set* of plausible faults with a coverage target (conforma
 git clone https://github.com/officialanas03/Transformer-DGA-twin.git
 cd Transformer-DGA-twin
 python -m venv .venv
-# activate: Windows PowerShell  .venv\\Scripts\\Activate.ps1   |   macOS/Linux  source .venv/bin/activate
+# activate: Windows PowerShell  .venv\\\\Scripts\\\\Activate.ps1   |   macOS/Linux  source .venv/bin/activate
 pip install -r requirements-dev.txt
 python -m pytest -q
 streamlit run app.py
@@ -45,7 +43,7 @@ rules-only mode (Duval, IEC, ageing indicators, twin) and data-dependent tests a
 |Ageing indicators|`dga/ageing/paper.py`|CO2/CO bands, 2-FAL to DP (Chendong, De Pablo), furan condition bands|
 |Twin core|`twin/thermal.py`, `twin/ageing.py`, `twin/dingwang.py`|Top-oil/hot-spot model; IEC relative ageing rate; Ekenstam and Ding-Wang/Luo DP kinetics|
 |App|`app.py`|Streamlit app: single sample, batch CSV, twin|
-|Studies|`run\_\*.py`, `docs/make\_figures.py`|Reproduce the results and figures below|
+|Studies|`run\\\_\\\*.py`, `docs/make\\\_figures.py`|Reproduce the results and figures below|
 
 ## Results
 
