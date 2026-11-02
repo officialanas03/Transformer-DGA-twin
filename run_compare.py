@@ -1,5 +1,7 @@
 """Duval vs IEC ratios vs random forest on the same cases."""
 import warnings
+from dga.data.require import require_data
+require_data('dga_augmented.csv', 'dga_iec_25cases.csv')
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier

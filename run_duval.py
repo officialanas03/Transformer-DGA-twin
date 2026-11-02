@@ -1,5 +1,7 @@
 """Duval Triangle 1 against the labelled datasets."""
 import warnings
+from dga.data.require import require_data
+require_data('dga_augmented.csv', 'dga_iec_25cases.csv')
 import pandas as pd
 from dga.data.loader import load_dga
 from dga.data.labels import to_coarse

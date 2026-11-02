@@ -1,86 +1,120 @@
-# dga-twin
+# Transformer DGA diagnosis and digital-twin core
 
-Dissolved gas analysis (DGA) diagnosis and a first thermal/ageing core for a transformer digital twin.
-Research prototype. Not validated for operational use.
+[![tests](https://github.com/officialanas03/Transformer-DGA-twin/actions/workflows/tests.yml/badge.svg)](https://github.com/officialanas03/Transformer-DGA-twin/actions)
 
-## What is in the repository
+Dissolved gas analysis (DGA) diagnosis for oil-filled transformers, with uncertainty estimates, and a first
+thermal and insulation-ageing core for a transformer digital twin. **Research prototype: not validated for operational use.**
 
-| Part | Files | What it does |
+<!-- Live demo: add the Streamlit link here after deployment -->
+**Live demo:** _link to be added_
+
+![Pipeline overview](docs/images/architecture.png)
+
+## What it does
+
+- **Diagnose a gas sample** with Duval triangle 1 and the IEC 60599 ratio method, optionally alongside a random
+  forest that returns a *set* of plausible faults with a coverage target (conformal prediction).
+- **Process a whole CSV** of samples in the app and download the results.
+- **Estimate insulation condition** from CO2/CO and from 2-FAL (furan) results via published correlations.
+- **Simulate hot-spot temperature and paper ageing** (DP) with two published models, and recalibrate them to a measured DP.
+
+![Duval triangle](docs/images/duval_triangle.png)
+
+## Quick start
+
+```bash
+git clone https://github.com/officialanas03/Transformer-DGA-twin.git
+cd Transformer-DGA-twin
+python -m venv .venv
+# activate: Windows PowerShell  .venv\Scripts\Activate.ps1   |   macOS/Linux  source .venv/bin/activate
+pip install -r requirements-dev.txt
+python -m pytest -q
+streamlit run app.py
+```
+
+The datasets used for the studies are not redistributed (see [DATA.md](DATA.md)). Without them the app runs in
+rules-only mode (Duval, IEC, ageing indicators, twin) and data-dependent tests are skipped.
+
+## Repository layout
+
+| Part | Files | Purpose |
 |---|---|---|
-| Data handling | `dga/data/` | Loader that needs the five core gases (CO and CO2 optional) and one shared label vocabulary |
-| Rule-based diagnosis | `dga/rules/duval.py`, `iec.py` | Duval triangle 1 and the IEC 60599 ratio method |
-| Machine learning | `dga/ml/`, `dga/eval/` | Features, random forest baseline, calibration metrics, split-conformal prediction sets |
+| Rule-based diagnosis | `dga/rules/duval.py`, `iec.py` | Duval triangle 1; IEC 60599 ratio method (reports "undetermined" or "ambiguous" instead of guessing) |
+| Machine learning | `dga/ml/`, `dga/eval/`, `dga/pipeline.py` | Features, random forest, calibration metrics, split-conformal sets, one-call diagnosis |
 | Ageing indicators | `dga/ageing/paper.py` | CO2/CO bands, 2-FAL to DP (Chendong, De Pablo), furan condition bands |
-| Twin core | `twin/thermal.py`, `twin/ageing.py`, `twin/dingwang.py` | Top-oil/hot-spot model, IEC relative ageing rate, Ekenstam/Arrhenius kinetic DP, and the saturating Ding-Wang/Luo DP model with time-temperature-moisture superposition; both DP models can be recalibrated to a measurement |
-| App | `app.py` | Streamlit app: DGA diagnosis tab and a twin tab |
-| Studies | `run_luo_check.py` (what can be reproduced from Luo et al. 2023), `run_baseline.py`, `run_duval.py`, `run_compare.py`, `run_uncertainty.py`, `run_twin_demo.py` | Reproduce the results below |
-
-## Data
-
-Three datasets in `data/`, all derived from files supplied by the author (sources not independently verified):
-
-- `dga_augmented.csv`: 4,244 rows with classes Normal, D1, D2, T1&T2, T3. No transformer IDs.
-- `dga_iec_25cases.csv`: 25 transformers from a published table, with free-text fault descriptions; 20 have a stated class (3 mixed).
-- `dga_illias2018_s1.csv`: S1 Table of Illias and Liang (PLOS ONE 2018). **Not used for training**: all 32 "high intensity discharge" rows have acetylene of 538,000 to 684,000 ppm, which is physically implausible, and 14 rows are duplicates.
-
-## Method notes
-
-- **Duval triangle 1** zones were reconstructed from the nine breakpoints printed in Duval (2002), Fig. 1, and checked against nine published worked examples. Not checked line by line against IEC 60599 / IEEE C57.104.
-- **IEC ratios** follow the standard's table as reproduced in two published sources; a sample is labelled only when exactly one fault matches, otherwise "undetermined" or "ambiguous". Limits differ slightly between editions and are in one dictionary.
-- **Random forest** uses five-gas features (three-gas percentages and three log-ratios) so it can be tested on datasets without CO2. Trained without the Normal class and without PD.
-- **Conformal sets**: split conformal with score 1 - p(true class).
-- **Twin**: differential-form top-oil and hot-spot equations (exact first-order update per step); IEC relative ageing rate; Ekenstam kinetics with Arrhenius rate, Ea about 113 kJ/mol. The pre-exponential factor has no default and must be calibrated.
+| Twin core | `twin/thermal.py`, `twin/ageing.py`, `twin/dingwang.py` | Top-oil/hot-spot model; IEC relative ageing rate; Ekenstam and Ding-Wang/Luo DP kinetics |
+| App | `app.py` | Streamlit app: single sample, batch CSV, twin |
+| Studies | `run_*.py`, `docs/make_figures.py` | Reproduce the results and figures below |
 
 ## Results
 
+On 20 real transformers with a stated fault class (3 of them mixed faults), the three methods cannot be separated:
+one case moves a score by 5 points.
+
+![Method comparison](docs/images/method_comparison.png)
+
 | Study | Result |
 |---|---|
-| Random forest, 5-fold CV inside the augmented set (no groups) | accuracy about 0.88 |
+| Random forest, 5-fold CV inside the augmented set (no transformer IDs) | accuracy about 0.88 |
 | Same forest tested on 13 real cases | accuracy about 0.62 |
-| Real cases (20 with a stated class): Duval / IEC / random forest | 0.60 / 0.50 / 0.57 (IEC answers on 14 of 20, right on 10) |
-| Duval vs augmented labels (non-Normal rows) | agrees on 62% |
-| "Normal" rows placed by Duval in a discharge zone | about 89% |
-| Conformal coverage inside the augmented set (target 90%) | about 89% |
-| Conformal coverage on the 16 real non-PD cases | about 79 to 81% |
+| Duval vs the augmented set's labels (non-Normal rows) | agree on 62% |
+| "Normal" rows that Duval places in a discharge zone | about 89% |
 
-With 13 to 20 real cases these comparisons cannot separate the methods: one case moves a score by 5 points or more.
+![Conformal coverage](docs/images/conformal_coverage.png)
 
-## Reproduction check against Luo et al. (Measurement 222, 2023)
+Conformal sets reach their 90% target inside the data they were calibrated on and fall short on real cases, as
+expected when the real cases do not resemble the calibration data.
 
-`python run_luo_check.py` prints the details. In short:
+### Reproduction check against Luo et al. (Measurement 222, 2023)
 
-- The levelling-off DP is reproduced (252.13 against 252.15), but only if moisture in Eq. (11) is a fraction (0.18 % = 0.0018).
-- Table 2 row I (temperature only) is reproduced to within 0.8 DP at years 1, 10, 25, 40 and 48, **after fitting one rate constant on year 1**. This confirms the model form, not the rate.
-- From the printed constants and the monthly hot-spot values (Fig. 6) the rate comes out about 26 % too low if k_DP is per day, and far too high if per hour; the paper does not state the unit.
-- Eq. (11) as printed gives k_DP <= 0 above about 0.62 % moisture, yet the paper reports moisture up to 3.2 %, so rows II and III of Table 2 (moisture) cannot be reproduced and the printed coefficients should not be used above that level.
+![Luo et al. Table 2](docs/images/luo_table2.png)
+
+The levelling-off DP is reproduced (252.13 against 252.15, with moisture as a fraction in Eq. 11) and Table 2's
+temperature-only row is matched within 0.8 DP after fitting one rate constant on year 1. That confirms the model
+form, not the rate: from the printed constants the rate comes out about 26% too low if k_DP is per day, and the
+paper states no unit. Eq. (11) as printed gives k_DP <= 0 above about 0.62% moisture although the paper reports
+moisture up to 3.2%, so its moisture rows cannot be reproduced.
+
+### Twin demonstration (synthetic)
+
+![Twin demo](docs/images/twin_demo.png)
+
+Everything in this figure is synthetic or assumed: invented load and ambient profiles, placeholder thermal
+parameters, an assumed life of 180,000 h to DP 200 at a 110 C hot spot, and a made-up 2-FAL result. It shows how one
+measurement can overturn an assumed ageing rate; it says nothing about a real transformer.
+
+## Method notes
+
+- **Duval triangle 1** zones were reconstructed from the nine breakpoints printed in Duval (2002), Fig. 1, and checked against nine
+  published worked examples. They have not been checked line by line against IEC 60599 or IEEE C57.104.
+- **IEC ratios** follow the standard's table as reproduced in two published sources; limits differ slightly between editions and
+  sit in one dictionary. The standard's gas-level screening is not applied.
+- **Random forest** uses five-gas features (three-gas percentages and three log-ratios), is trained without the "Normal" class
+  and has no PD class.
+- **Conformal sets**: split conformal with score 1 - p(true class).
+- **Twin**: differential-form top-oil and hot-spot equations (exact first-order update per step); IEC relative ageing rate;
+  Ekenstam kinetics (Ea about 113 kJ/mol, pre-exponential factor calibrated, no default); Ding-Wang/Luo saturating model.
 
 ## Limitations
 
-1. The augmented set has no transformer IDs, so cross-validation scores are probably optimistic; the drop from 0.88 to 0.62 on real cases suggests leakage, distribution shift, or both.
-2. The "Normal" label in the augmented set conflicts with Duval's triangle on most rows and the class is excluded from the main model.
-3. The forest has no PD class. Confident wrong answers occur on real cases (for example case 13 at 89% confidence).
-4. Conformal coverage held inside the augmented set but fell short on real cases, as expected when data are not exchangeable with the calibration set.
-5. Thermal parameters in `twin/thermal.py` are illustrative placeholders. The starting ageing constant in the demo assumes DP 1000 to 200 after 180,000 h at 110 C hot spot; verify against IEC 60076-7.
-6. The IEC exponential-equation form (k11, k21, k22) and the Emsley ageing model are not implemented.
-7. The IEC 60599 gas-level screening (typical values) is not applied.
-8. Not yet built: surrogate layer from CFD data, Kalman/Bayesian live calibration, FastAPI service.
-
-## Running it
-
-```bash
-pip install -r requirements.txt
-python -m pytest -q                 # 58 tests
-python run_baseline.py
-python run_duval.py
-python run_compare.py
-python run_uncertainty.py
-python run_twin_demo.py             # writes twin_demo.png (synthetic)
-streamlit run app.py
-```
+1. The augmented dataset has no transformer IDs, so cross-validation scores are probably optimistic.
+2. Its "Normal" label conflicts with Duval's triangle on most rows, so that class is excluded.
+3. The forest cannot output PD and can be confidently wrong on real cases.
+4. With 13 to 20 real cases, method comparisons are not statistically meaningful.
+5. Thermal parameters are illustrative placeholders; replace them with the heat-run test report values.
+6. The IEC exponential thermal form, the Emsley ageing model and the IEC gas-level screening are not implemented.
+7. Not yet built: a surrogate layer from CFD data, Kalman/Bayesian live calibration, an API service.
+8. The batch tab of a public deployment should not be used with confidential data.
 
 ## Key references
 
 - Duval, M. "A Review of Faults Detectable by Gas-in-Oil Analysis in Transformers", IEEE Electr. Insul. Mag. 18(3), 2002.
-- IEC 60599 and IEC 60076-7; IEEE C57.104 and C57.91.
+- Luo, H. et al. "A novel approach to building digital twin transformers by combining virtual-real sensing", Measurement 222, 2023.
+- IEC 60599, IEC 60076-7, IEEE C57.104, IEEE C57.91.
 - Chendong (1991) and De Pablo furan-DP correlations, as compared in IEEE Trans. Power Delivery 28(2), 2013.
-- Emsley and Stevens, Cellulose 1, 1994 (cellulose degradation kinetics).
+- Ding, H.Z. and Wang, Z.D., "On the degradation evolution equations of cellulose", Cellulose 15, 2008.
+- Illias, H.A. and Liang, W.Z., PLOS ONE 13(1): e0191366, 2018.
+
+## Licence
+
+Code: MIT (see [LICENSE](LICENSE)). Datasets are not covered; see [DATA.md](DATA.md).

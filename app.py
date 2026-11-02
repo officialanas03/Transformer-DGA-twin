@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import streamlit as st
 
-from dga.pipeline import Diagnoser
+from dga.pipeline import load_diagnoser_or_none, diagnose_rules, diagnose_table, MAX_BATCH_ROWS
 from dga.rules.duval import classify_pct, ZONE_ORDER
 from dga.ageing.paper import dp_chendong
 from twin.thermal import ThermalParams, simulate
@@ -19,7 +19,18 @@ st.caption("Research prototype. Not a substitute for an engineer's judgement or 
 
 @st.cache_resource
 def get_diagnoser():
-    return Diagnoser()
+    """The random forest, or None when the training data is not part of this deployment."""
+    return load_diagnoser_or_none()
+
+EXAMPLES = {   # illustrative values, NOT real measurements
+    "Custom (type your own)": None,
+    "Illustrative: low-temperature overheating": dict(h2=60, ch4=120, c2h6=90, c2h4=30, c2h2=0),
+    "Illustrative: high-temperature overheating": dict(h2=150, ch4=400, c2h6=120, c2h4=650, c2h2=8),
+    "Illustrative: arcing": dict(h2=800, ch4=150, c2h6=30, c2h4=300, c2h2=900),
+    "Illustrative: partial discharge": dict(h2=900, ch4=60, c2h6=10, c2h4=2, c2h2=0),
+}
+TEMPLATE_CSV = ("H2,CH4,C2H6,C2H4,C2H2,CO,CO2\n"
+                "60,120,90,30,0,400,2500\n150,400,120,650,8,600,4000\n800,150,30,300,900,300,1500\n")
 
 @st.cache_data
 def triangle_grid(step=1.0):
@@ -48,17 +59,19 @@ def draw_triangle(pct):
     ax.set_aspect("equal"); ax.axis("off"); ax.legend(loc="upper right", fontsize=7, markerscale=1.5)
     return fig
 
-tab1, tab2 = st.tabs(["DGA diagnosis", "Transformer twin"])
+tab1, tab_batch, tab2 = st.tabs(["DGA diagnosis", "Batch (CSV)", "Transformer twin"])
 
 # ---------------- Tab 1 ----------------
 with tab1:
     st.subheader("Dissolved gas analysis")
+    choice = st.selectbox("Start from an example", list(EXAMPLES))
+    ex = EXAMPLES[choice] or dict(h2=100, ch4=50, c2h6=20, c2h4=80, c2h2=2)
     c = st.columns(5)
-    h2 = c[0].number_input("H2 (ppm)", min_value=0.0, value=100.0)
-    ch4 = c[1].number_input("CH4 (ppm)", min_value=0.0, value=50.0)
-    c2h6 = c[2].number_input("C2H6 (ppm)", min_value=0.0, value=20.0)
-    c2h4 = c[3].number_input("C2H4 (ppm)", min_value=0.0, value=80.0)
-    c2h2 = c[4].number_input("C2H2 (ppm)", min_value=0.0, value=2.0)
+    h2 = c[0].number_input("H2 (ppm)", min_value=0.0, value=float(ex["h2"]))
+    ch4 = c[1].number_input("CH4 (ppm)", min_value=0.0, value=float(ex["ch4"]))
+    c2h6 = c[2].number_input("C2H6 (ppm)", min_value=0.0, value=float(ex["c2h6"]))
+    c2h4 = c[3].number_input("C2H4 (ppm)", min_value=0.0, value=float(ex["c2h4"]))
+    c2h2 = c[4].number_input("C2H2 (ppm)", min_value=0.0, value=float(ex["c2h2"]))
     has_co = st.checkbox("I have CO and CO2")
     co = co2 = None
     if has_co:
@@ -72,16 +85,24 @@ with tab1:
 
     with st.spinner("Preparing the model..."):
         diag = get_diagnoser()
-    res = diag.diagnose(h2, ch4, c2h6, c2h4, c2h2, co=co, co2=co2, fal_ppm=fal)
+    if diag is not None:
+        res = diag.diagnose(h2, ch4, c2h6, c2h4, c2h2, co=co, co2=co2, fal_ppm=fal)
+    else:
+        res = diagnose_rules(h2, ch4, c2h6, c2h4, c2h2, co=co, co2=co2, fal_ppm=fal)
+        res.update(rf_proba={}, rf_set=[], rf_top=None)
 
     left, right = st.columns([1, 1])
     with left:
         st.metric("Duval triangle 1", res["duval"] or "n/a")
         st.metric("IEC ratio method", res["iec"])
-        label = ", ".join(res["rf_set"]) if res["rf_set"] else "no class"
-        st.metric(f"Random forest set ({int((1 - diag.alpha) * 100)}% target coverage)", label)
-        if res["rf_proba"]:
-            st.table(pd.DataFrame({"probability": res["rf_proba"]}))
+        if diag is not None:
+            label = ", ".join(res["rf_set"]) if res["rf_set"] else "no class"
+            st.metric(f"Random forest set ({int((1 - diag.alpha) * 100)}% target coverage)", label)
+            if res["rf_proba"]:
+                st.table(pd.DataFrame({"probability": res["rf_proba"]}))
+        else:
+            st.info("The random forest is not part of this deployment (its training data is not redistributed). "
+                    "Duval, IEC and the ageing indicators below do not need it.")
     with right:
         st.pyplot(draw_triangle(res["duval_pct"]))
     for w in res["warnings"]:
@@ -94,6 +115,23 @@ with tab1:
         st.write(f"Estimated DP from 2-FAL: Chendong {f['dp_chendong']:.0f}, De Pablo {f['dp_depablo']:.0f}. "
                  f"Condition band: {f['condition']}.")
         st.caption("Chendong is quoted for DP 150-1000 and De Pablo for 150-600; outside that range treat the number as indicative only.")
+
+# ---------------- Batch tab ----------------
+with tab_batch:
+    st.subheader("Batch diagnosis from a CSV file")
+    st.write("Upload a CSV with columns H2, CH4, C2H6, C2H4, C2H2 (ppm). Optional columns: CO, CO2, FAL (2-FAL in ppm). "
+             f"At most {MAX_BATCH_ROWS} rows. This is a public demo: do not upload confidential utility data.")
+    st.download_button("Download a template CSV", TEMPLATE_CSV, file_name="dga_template.csv", mime="text/csv")
+    up = st.file_uploader("CSV file", type=["csv"])
+    if up is not None:
+        try:
+            table = pd.read_csv(up)
+            out = diagnose_table(table, get_diagnoser())
+            st.dataframe(out)
+            st.write("Duval zones in this file:", out["duval"].value_counts(dropna=False).to_dict())
+            st.download_button("Download results as CSV", out.to_csv(index=False), file_name="dga_results.csv", mime="text/csv")
+        except Exception as e:
+            st.error(f"Could not process this file: {e}")
 
 # ---------------- Tab 2 ----------------
 with tab2:
