@@ -1,0 +1,21 @@
+case_no,H2,CH4,C2H6,C2H4,C2H2,fault,fault_description,duval,iec,rf,duval_ok,iec_ok,rf_ok
+1,1634.0,136.0,7.0,1.0,0.0,PD,PD,PD,PD,T1&T2,True,True,False
+2,108.9,2.48,16.6,16.62,0.0,T1,T1 - Unsatisfactory insulation of electrical steel sheets,T3,undetermined,T1&T2,False,False,True
+3,50.0,4.8,5.2,23.0,1.1,PD,Critical PD - Loose nut on LV winding lead with bushing stud,T3,undetermined,T1&T2,False,False,False
+4,169.0,22.0,1.0,0.001,0.0,PD,Corona discharge,PD,undetermined,T1&T2,True,False,False
+6,45.0,30.0,13.0,30.0,18.0,PD,Sustained developed PD with overlapping on the surface of the solid insulation,D2,D2,T3,False,False,False
+8,2000.0,210.0,60.0,270.0,1340.0,D2,D2 - Broken switch current lead,D1,D1,D2,False,False,True
+9,30.0,800.0,170.0,10.0,0.0,T1,T1 - Heating of the pressing bolts by leakage currents,PD,T1&T2,T1&T2,False,True,True
+10,13.0,131.0,37.0,5.0,0.2,T1,T1 - Loose pressing of the magnetic core,T1&T2,T1&T2,T1&T2,True,True,True
+11,40.0,66.0,35.0,56.0,0.0,T2,T2 - Increased heating of the bolt connections,T1&T2,T1&T2,T3,True,True,False
+12,17.1,102.0,161.0,28.5,0.8,T1,T1 - Presence of short-circuited circuit,T1&T2,T1&T2,T1&T2,True,True,True
+13,20.0,100.0,7000.0,200.0,10.0,T1,"T1 - Contamination of pipes and inter-tube space, clogged cooler pipes",T3,T1&T2,T3,False,True,False
+15,47.3,181.0,81.0,415.0,18.6,T3,T3 - Overheating of the iron due to faulty circulation of currents in the core,T3,T3,T1&T2,True,True,False
+16,104.5,144.5,15.6,178.8,5.6,T3,T3 - Thermal defect caused by faulty connections,T3,T3,T3,True,True,True
+19,65.2,42.7,18.3,165.3,88.4,T3+D2,T3 and D2 - The tensioned stud having signs of arcing discharges at the ends,D2,undetermined,D2,True,False,True
+20,525.0,109.0,113.0,527.0,420.0,T3+D2,T3 and D2 - Arc in the yoke beam of the top of the transformer,D2,D2,D2,True,True,True
+21,120.0,79.0,50.0,390.0,8100.0,D2,D2 - Loosening of the nut on the LV winding bushing stud,D1,undetermined,T3,False,False,False
+22,60.0,140.0,60.0,60.0,250.0,T2+D1,T2 and D1 - Contact between top bracket and tank rail with traces of molten metal,D1,undetermined,D1,True,False,True
+23,160.0,24.0,6.0,150.0,400.0,D2,D2 - Breakdown of the winding insulation,D2,D1,D1,True,False,False
+24,940.0,730.0,250.0,2280.0,2470.0,D2,D2,D2,D2,D2,True,True,True
+25,245.0,30.0,5.0,35.0,245.0,D2,D2 - Electrical overlap between windings along the resistance rail was detected,D1,D1,D2,False,False,True
