@@ -83,4 +83,78 @@ for (x0, y0, x1, y1) in [(1.7, 1.75, 2.2, 2.7), (1.7, 1.75, 2.2, 1.7), (1.7, 1.7
     ax.annotate("", xy=(x1, y1), xytext=(x0, y0), arrowprops=dict(arrowstyle="->", color="#555"))
 ax.set_title("Pipeline overview", fontsize=10)
 fig.tight_layout(); fig.savefig(OUT / "architecture.png", dpi=150); plt.close(fig)
+# ---- 6. Luo et al. Table 2, all three rows: only row I is fitted ----
+from twin import report as rp, luo_chain as lc
+frame = rp.luo_table2_frame()
+fig, ax = plt.subplots(figsize=(7.2, 4.2))
+ks = lc.fit_k_scale(rp._paper_row(67)[1]); yy = list(range(1, 49))
+for (label, var, ol, first, status), col in zip(rp.CASES, ["#1d3557", "#e76f51", "#f4a261", "#2a9d8f", "#52b788"]):
+    ax.plot(yy, [lc.table2_row(yy, var, ks, overload_hours=ol)[y] for y in yy], color=col, lw=1.4, ls="-" if var == "none" else "--", label="model " + label)
+for first, mk, name in [(67, "o", "paper I"), (72, "s", "paper II"), (77, "^", "paper III")]:
+    ax.scatter(rp.YEARS, [rp._paper_row(first)[y] for y in rp.YEARS], color="k", marker=mk, zorder=4, s=28, label=name)
+ax.set_xlabel("operating years"); ax.set_ylabel("DP at the hot spot"); ax.set_ylim(200, 1250); ax.legend(fontsize=6, ncol=2)
+ax.set_title("Table 2: row I is fitted; rows II and III use ASSUMED moisture and do not match (printed Eq. 11 cannot reproduce them)", fontsize=7)
+fig.tight_layout(); fig.savefig(OUT / "luo_rows_variants.png", dpi=150); plt.close(fig)
+
+# ---- 7. Temperature -> moisture -> DP maps from the ANSYS exports (ASSUMED geometry), smoothed by Delaunay surface rebuild ----
+from twin import ansys_io as ai, pipeline_dp as pdp, surface as sf
+EXD = Path(__file__).resolve().parents[1] / "examples" / "ansys"
+snap, snap13 = ai.read_snapshot(EXD / "T_load0p74.csv"), ai.read_snapshot(EXD / "T_load1p30.csv")
+P = snap[["x_m", "y_m"]].to_numpy(); TRI = sf.mask_long_edges(P, sf.delaunay(P), 0.02)
+def draw(a, z, title, cmap, vmin=None, vmax=None):
+    gx, gy, Z = sf.resample(P[:, 0], P[:, 1], z, TRI, 0.002)
+    im = a.imshow(Z, origin="lower", extent=[gx[0], gx[-1], gy[0], gy[-1]], aspect="auto", cmap=cmap, vmin=vmin, vmax=vmax)
+    a.set_title(title, fontsize=8); a.set_xlabel("radius (m)"); a.set_ylabel("height (m)")
+    return im
+m48 = pdp.dp_map_with_moisture(snap, 48)
+fig, axs = plt.subplots(1, 3, figsize=(10.5, 4.4))
+for a, z, ttl, cm in [(axs[0], snap.T_C.to_numpy(), "temperature (C), load 0.74", "inferno"),
+                      (axs[1], m48.C_pct.to_numpy(), "moisture (%), year 48", "Blues"),
+                      (axs[2], m48.DP.to_numpy(), "DP, year 48 (moisture variant)", "viridis")]:
+    fig.colorbar(draw(a, z, ttl, cm), ax=a, shrink=0.8)
+fig.suptitle("ANSYS export, ASSUMED geometry, film coefficient fitted (LV left, HV right). Pipeline demonstration, not a finding. "
+             "Surface rebuilt by Delaunay triangulation", fontsize=7)
+fig.tight_layout(); fig.savefig(OUT / "ansys_dp_map.png", dpi=150); plt.close(fig)
+
+fig, axs = plt.subplots(1, 5, figsize=(12, 4.2), sharey=True)
+for a, yr in zip(axs, [1, 10, 25, 40, 48]):
+    m = pdp.dp_map_with_moisture(snap, yr, df_overload=snap13, overload_hours=24)
+    im = draw(a, m.DP.to_numpy(), f"year {yr}", "turbo", 200, 1200)
+axs[0].set_ylabel("height (m)")
+for a in axs[1:]: a.set_ylabel("")
+fig.colorbar(im, ax=axs, shrink=0.8, label="DP")
+fig.suptitle("DP maps, case III-like (24 h per year at load 1.3), same assumed model; compare the layout of Luo et al. Fig. 13", fontsize=8)
+fig.savefig(OUT / "dp_maps_years.png", dpi=150, bbox_inches="tight"); plt.close(fig)
+
+# ---- 8. SYNTHETIC live calibration: works with a correct model, hides a wrong one ----
+import numpy as np
+from twin.surrogate import WindingSurrogate
+L, HFS = np.linspace(0.3, 1.4, 12), np.linspace(50, 110, 8)
+filt = WindingSurrogate(nz=60).fit_from_model(L, HFS)
+truth = WindingSurrogate(nz=120, nr_lv=14, nr_hv=18).fit_from_model(L, HFS)
+wrong = WindingSurrogate(nz=60).fit_from_model(L, HFS, t_top=47.0)
+H = 24 * 60
+a_ = rp.calibration_demo(filt, truth, np.linspace(72, 55, H), hours=H, qx=1e-3)
+b_ = rp.calibration_demo(filt, wrong, 72.0, hours=H, qx=1e-3)
+fig, axs = plt.subplots(1, 2, figsize=(9, 3.6), sharey=True)
+for a, d, ttl in [(axs[0], a_, "model correct, film coefficient drifting"), (axs[1], b_, "model WRONG (oil 7 K warmer than assumed)")]:
+    a.plot(d["hf_true"], "k", label="true (hidden)"); a.plot(d["hf_est"], color="#e76f51", label="filter estimate")
+    a.set_title(f"{ttl}\nhot-spot RMSE: filter {d['rmse_filter']:.2f} K, sensor noise {d['rmse_sensor']:.2f} K; error at load 1.3: {d['overload_error']:+.1f} K", fontsize=7)
+    a.set_xlabel("hour")
+axs[0].set_ylabel("film coefficient (W/m2K)"); axs[0].legend(fontsize=8)
+fig.suptitle("SYNTHETIC data (invented load, drift and noise): calibration is not validation", fontsize=9)
+fig.tight_layout(); fig.savefig(OUT / "kalman_synthetic.png", dpi=150); plt.close(fig)
+print(f"fig8: drift case filter {a_['rmse_filter']:.2f} K vs uncalibrated {a_['rmse_uncal']:.2f} K; wrong-model case: hf est {b_['hf_est'][-1]:.1f} vs 72, overload error {b_['overload_error']:+.1f} K")
+# ---- 9. Sensitivity of the LV DP profile (year 48) to the ASSUMED thermal model ----
+from twin import thermal_variants as tv
+fig, ax = plt.subplots(figsize=(6.6, 4.4))
+for name, tt, qf, col in [("A  oil 20-40 C, equal loss density", 40, 1.0, "#999999"), ("B  oil 20-40 C, HV x0.6", 40, 0.6, "#1d3557"),
+                          ("C  oil 20-50 C, HV x0.6", 50, 0.6, "#e76f51"), ("D  oil 20-60 C, HV x0.6", 60, 0.6, "#2a9d8f")]:
+    v = tv.variant(tt, qf); m = ai.winding(pdp.dp_map_with_moisture(v["base"], 48)); lv = m[m.winding == "LV"]
+    g = lv.groupby(lv.y_m.round(4)).DP.min()
+    ax.plot(g.values, g.index / 1.2, color=col, label=f"{name} (1.3 pu: {v['lv_overload']:.0f} C)")
+ax.scatter([252.15, 676.33, 927.5], [0.9, 0.5, 0.1], color="k", zorder=5, label="paper Table 3, LV (1.3 pu: 112.84 C)")
+ax.set_xlabel("DP at year 48 (moisture-field variant)"); ax.set_ylabel("relative height of LV winding"); ax.legend(fontsize=6.5)
+ax.set_title("A wider temperature range fits Table 3 better but breaks the 1.3 pu check; all thermal models are placeholders", fontsize=7)
+fig.tight_layout(); fig.savefig(OUT / "thermal_sensitivity.png", dpi=150); plt.close(fig)
 print("wrote", sorted(p.name for p in OUT.glob("*.png")))

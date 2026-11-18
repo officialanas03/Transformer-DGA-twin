@@ -9,4 +9,6 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r requirements-dev.txt
+      - run: python -m compileall -q app.py twin dga
       - run: python -m pytest -q
+      - run: python run_luo_table2.py

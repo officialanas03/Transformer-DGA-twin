@@ -1,0 +1,92 @@
+id,group,quantity,value,unit,pdf_page,location,kind,note
+c01,eq1,C1 oil saturation const a,7.42,-,5,Eq.1 / Fig.1 (p.2),printed,C1 = 10^(a - b/(273.15+T)); T in C; ppm
+c02,eq1,C1 oil saturation const b,1670,K,5,Eq.1 / Fig.1 (p.2),printed,
+c03,eq1,P1 water vapour pressure const a,9.3876,-,5,Eq.1 / Fig.1 (p.2),printed,P1 = exp(a - b/(T+273.15-c)); labels P1/P2/P3 differ between Fig.1 and Eq.1
+c04,eq1,P1 water vapour pressure const b,3826.36,K,5,Eq.1 / Fig.1 (p.2),printed,
+c05,eq1,P1 water vapour pressure const c,45.47,K,5,Eq.1 / Fig.1 (p.2),printed,
+c06,eq1,C_paper prefactor,2.173e-5,-,5,Eq.1 / Fig.1 (p.2),printed,C_paper in percent (symbol table p.1)
+c07,eq1,C_paper exponent of P_V,0.6685,-,5,Eq.1 / Fig.1 (p.2),printed,
+c08,eq1,C_paper exponent const,4725.6,K,5,Eq.1 / Fig.1 (p.2),printed,
+c09,eq1,P0 standard pressure,0.101325,MPa,1,symbol table (unit MPa); value NOT printed,assumption,"value assumed = 1 atm; paper says only 'pressure corresponding to 1 standard pressure'"
+c10,eq2,D0 initial diffusion coefficient,1.34e-13,m2/s,5,Eq.2 text,printed,
+c11,eq2,k0 concentration factor,0.5,-,5,Eq.2 text,printed,"D = D0 exp(k0 C0 + E(1/T0 - 1/T)); unit of C0 not stated"
+c12,eq2,E temperature factor,8074,K (assumed),5,Eq.2 text,printed,unit not stated; K assumed
+c13,eq2,T0 room temperature,298,K,5,Eq.2 text,printed,
+c14,eq4,pressboard thickness l,,m,5,Eq.3-4,not_given,not stated anywhere in the paper
+c15,eq5,DP0 initial DP,1200,-,5,Eq.5 text,printed,
+c16,eq6,Ea activation energy,91.4,kJ/mol,5,Eq.6 text,printed,
+c17,eq6,Tref reference temperature,363.15,K,5,Eq.6 text,printed,
+c18,eq10,gamma,-1096.1125,J/mol per percent (inferred),5,Fig.4 inset,printed,fitted value; +/-55 printed; C in percent inferred from 3019.22 = R*363.15
+c19,eq10,gamma uncertainty,55,same as gamma,5,Fig.4 inset,printed,
+c20,eq10,Fig.4 reduced chi-square,0.34261,-,5,Fig.4 inset,printed,
+c21,eq10,Fig.4 R2 (COD),0.96435,-,5,Fig.4 inset,printed,text on p.5 says 'goodness of fit of 96.44 %'
+c22,eq10,Fig.4 inset denominator,3019.22,-,5,Fig.4 inset,printed,= R*363.15 with R=8.314 (my arithmetic: 8.314*363.15 = 3019.2)
+c23,fig4,alpha_C at C=0 %,1.0,-,5,Fig.4 data points,figure_reading_approx,read by eye from plot
+c24,fig4,alpha_C at C=1 %,1.7,-,5,Fig.4 data points,figure_reading_approx,read by eye from plot
+c25,fig4,alpha_C at C=3 %,3.3,-,5,Fig.4 data points,figure_reading_approx,read by eye from plot
+c26,fig4,alpha_C at C=5 %,6.0,-,5,Fig.4 data points,figure_reading_approx,read by eye from plot
+c27,eq11,w* coefficient C^2,26.38,-,5,Eq.11,printed,w* = 26.38C^2 - 0.776C + 0.7912; reproduces 252.13 only with C as a fraction
+c28,eq11,w* coefficient C,-0.776,-,5,Eq.11,printed,
+c29,eq11,w* constant,0.7912,-,5,Eq.11,printed,
+c30,eq11,k_DP coefficient C^2,-1.55,-,5,Eq.11,printed,time unit not stated
+c31,eq11,k_DP coefficient C,-0.2015,-,5,Eq.11,printed,
+c32,eq11,k_DP constant,0.0013,-,5,Eq.11,printed,
+c33,eq12,levelling-off DP,252.15,-,6,Sec.3.3 end,printed,at load 0.74; hot spot 61.29 C; minimum moisture 0.18 %
+c34,eq12,moisture used for levelling-off DP,0.18,percent,6,Sec.3.3 end,printed,'minimum moisture content'
+c35,sec4.1,base load rate (month 1),0.74,pu,6,Sec.4.1,printed,
+c36,sec4.1,hot spot temperature at load 0.74,61.29,C,6,Sec.4.1 / Fig.8,printed,
+c37,sec4.1,hot spot height,90,percent of LV height,6,Sec.4.1,printed,"wording: '90 % of the height of the top of the LV windings' - ambiguous"
+c38,sec4.1,coolest temperature,20,C,6,Sec.4.1,printed,'about 20 C' near HV bottom electrostatic ring
+c39,sec4.1,temperature error vs sensor,3.5,percent,6,Sec.4.1 / abstract,printed,monthly average hot spot vs sensor
+c40,fig8,monitoring average hot spot,63.51,C,7,Fig.8 legend,printed,Fig.6 month-1 bar shows 61.5 C: inconsistent with 63.51 for the same month?
+c41,fig8,calculated average hot spot,61.29,C,7,Fig.8 legend,printed,
+c42,fig6,hot spot month 1,61.5,C,7,Fig.6 bar label,printed,
+c43,fig6,hot spot month 2,53.0,C,7,Fig.6 bar label,printed,
+c44,fig6,hot spot month 3,61.3,C,7,Fig.6 bar label,printed,
+c45,fig6,hot spot month 4,59.0,C,7,Fig.6 bar label,printed,
+c46,fig6,hot spot month 5,51.1,C,7,Fig.6 bar label,printed,
+c47,fig6,hot spot month 6,51.4,C,7,Fig.6 bar label,printed,
+c48,fig6,hot spot month 7,48.4,C,7,Fig.6 bar label,printed,
+c49,fig6,hot spot month 8,49.3,C,7,Fig.6 bar label,printed,
+c50,fig6,hot spot month 9,53.2,C,7,Fig.6 bar label,printed,
+c51,fig6,hot spot month 10,60.6,C,7,Fig.6 bar label,printed,
+c52,fig6,hot spot month 11,70.6,C,7,Fig.6 bar label,printed,
+c53,fig6,hot spot month 12,75.6,C,7,Fig.6 bar label,printed,
+c54,fig6,load rate by month,,pu,7,Fig.6 red line,not_extracted,"only month 1 (0.74) is stated in text; other values would be figure readings"
+c55,sec4.2,initial oil moisture,10,ppm,7,Sec.4.2 (Fig.9 discussion),printed,bottom local position
+c56,eq13,C_r prefactor,0.7,percent,7,Eq.13,printed,C_r = 0.7 exp(0.0295 (r-3)); r operating year; ref [36]
+c57,eq13,C_r exponent rate,0.0295,per year,7,Eq.13,printed,
+c58,eq13,C_r reference year,3,year,7,Eq.13,printed,
+c59,fig9,time points shown (min),0;8;16;32;53;600,min,8,Fig.9,printed,panel labels
+c60,fig9,colour scale range,0.5 to about 0.75+,percent,8,Fig.9 colour bar,figure_reading_approx,initial colour near the minimum of the scale
+c61,fig10,colour scale max,3.2,percent,8,Fig.10 colour bar,printed,scale ticks 0 / 0.64 / 1.28 / 1.92 / 2.56 / 3.2
+c62,sec4.2,max moisture year 48,3.2,percent,7,Sec.4.2 / abstract,printed,solid insulation at bottom
+c63,sec4.3,overload duration,24,h per year,9,Sec.4.3,printed,'approximately 24 h ... every 1 year on average'
+c64,sec4.3,overload load rate,1.3,pu,9,Sec.4.3,printed,
+c65,sec4.3,hot spot at overload,112.84,C,9,Sec.4.3,printed,
+c66,sec4.3,initial moisture for cases II and III,year-3 distribution,-,8,Sec.4.3,printed,exact value at hot spot not given
+c67,table2,case I year 1,1167.52,DP,10,Table 2,printed,temperature only
+c68,table2,case I year 10,920.92,DP,10,Table 2,printed,
+c69,table2,case I year 25,648.27,DP,10,Table 2,printed,
+c70,table2,case I year 40,486.52,DP,10,Table 2,printed,
+c71,table2,case I year 48,429.17,DP,10,Table 2,printed,
+c72,table2,case II year 1,1159.46,DP,10,Table 2,printed,temperature + moisture
+c73,table2,case II year 10,864.36,DP,10,Table 2,printed,
+c74,table2,case II year 25,569.91,DP,10,Table 2,printed,
+c75,table2,case II year 40,417.05,DP,10,Table 2,printed,
+c76,table2,case II year 48,368.36,DP,10,Table 2,printed,
+c77,table2,case III year 1,1149.84,DP,10,Table 2,printed,+ 24 h overload per year
+c78,table2,case III year 10,795.89,DP,10,Table 2,printed,
+c79,table2,case III year 25,465.24,DP,10,Table 2,printed,
+c80,table2,case III year 40,303.13,DP,10,Table 2,printed,
+c81,table2,case III year 48,252.15,DP,10,Table 2,printed,equals the levelling-off DP exactly
+c82,sec4.3,target DP for ageing-rate comparison,250,DP,10,Sec.4.3,printed,'time for the initial DP value to decrease to 250 at 61.29 C'
+c83,sec4.3,ageing rate ratio 2 % vs 0.2 % moisture,7.4,times,10,Sec.4.3,printed,
+c84,table3,LV top calculated,252.15,DP,11,Table 3,printed,CIGRE range 201-400
+c85,table3,LV middle calculated,676.33,DP,11,Table 3,printed,CIGRE range 601-800
+c86,table3,LV bottom calculated,927.5,DP,11,Table 3,printed,CIGRE range >801
+c87,table3,HV top calculated,645.33,DP,11,Table 3,printed,CIGRE range 501-700
+c88,table3,HV middle calculated,811.4,DP,11,Table 3,printed,CIGRE range 601-900
+c89,table3,HV bottom calculated,879.04,DP,11,Table 3,printed,CIGRE range >801
+c90,sec3.4,points per row/column for surface rebuild,20-100,-,6,Sec.3.4 step 1,printed,visualisation only
+c91,sec4.3,mechanical stress / gravity,not modelled,-,11,Sec.4.3 end,printed,paper says these are not included

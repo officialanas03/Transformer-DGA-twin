@@ -1,0 +1,132 @@
+! luo_thermal_batch.inp -- same model as luo_thermal.inp, solved for a GRID of loads and film coefficients.
+! UNTESTED: written without access to ANSYS. If a line errors, copy the error text.
+! Units: SI (m, W, C). Axis of symmetry = Y axis. Everything marked ASSUMED is a PLACEHOLDER, not from Luo et al. 2023.
+! Output (written to the ANSYS working directory):
+!   runs.csv       one row per run: run,load_pu,HF,TTOP,Q_W_m3,LV_max_C,LV_max_y_m,HV_max_C,HV_max_y_m,T_min_C
+!   snapshots.csv  all nodes of all runs: run,node,x_m,y_m,T_C   (LV is x < 0.30 m, HV is x > 0.30 m)
+! The model, geometry and constants are identical to luo_thermal.inp; only the loops are new.
+
+/CLEAR,NOSTART
+/PREP7
+
+! ---------- inputs you change ----------
+Q0    = 1.0E5       ! ASSUMED heat generation at load 0.74 (W/m3)
+QHVF  = 1.0         ! ASSUMED HV heat-generation factor relative to LV (1 = same as before)
+TBOT  = 20          ! ASSUMED oil temperature at bottom (C)
+TTOP  = 40          ! ASSUMED oil temperature at top (C)
+KCU   = 385         ! ASSUMED copper conductivity (W/mK)
+HT    = 1.2         ! ASSUMED winding height (m)
+
+NL = 11             ! number of loads
+NH = 3              ! number of film coefficients
+*DIM,LDS,ARRAY,NL
+*DIM,HFS,ARRAY,NH
+*DO,I,1,NL
+  LDS(I) = 0.3 + 0.1*I          ! loads 0.4, 0.5, ... 1.4 per unit
+*ENDDO
+HFS(1) = 60
+HFS(2) = 72
+HFS(3) = 90
+
+! ---------- model (built once) ----------
+ET,1,PLANE55
+KEYOPT,1,3,1              ! axisymmetric
+MP,KXX,1,KCU
+
+RECTNG,0.250,0.290,0,HT   ! area 1 = LV winding (ASSUMED dimensions)
+RECTNG,0.340,0.400,0,HT   ! area 2 = HV winding (ASSUMED dimensions)
+
+ESIZE,0.01
+AMESH,ALL
+
+ALLSEL
+*GET,NN,NODE,0,COUNT
+*DIM,ID,ARRAY,NN
+*DIM,XN,ARRAY,NN
+*DIM,YN,ARRAY,NN
+*DIM,TN,ARRAY,NN
+*DIM,RR,ARRAY,NN
+*VGET,ID(1),NODE,,NLIST
+*VGET,XN(1),NODE,ID(1),LOC,X
+*VGET,YN(1),NODE,ID(1),LOC,Y
+
+*DIM,TBLB,TABLE,2,1,1,Y   ! oil temperature rising linearly with height
+TBLB(1,0)=0
+TBLB(2,0)=HT
+TBLB(1,1)=TBOT
+TBLB(2,1)=TTOP
+
+! ---------- output files ----------
+*CFOPEN,runs,csv
+*VWRITE
+('run,load_pu,HF,TTOP,Q_W_m3,LV_max_C,LV_max_y_m,HV_max_C,HV_max_y_m,T_min_C')
+*CFCLOS
+*CFOPEN,snapshots,csv
+*VWRITE
+('run,node,x_m,y_m,T_C')
+*CFCLOS
+
+! ---------- loop over runs ----------
+RUN = 0
+*DO,IL,1,NL
+ *DO,IH,1,NH
+  RUN  = RUN + 1
+  LOAD = LDS(IL)
+  HF   = HFS(IH)
+  QV   = Q0*(LOAD/0.74)**2          ! ASSUMED: losses proportional to current squared
+
+  /SOLU
+  ANTYPE,STATIC
+  BFA,1,HGEN,QV                      ! re-issuing a load replaces the old value
+  BFA,2,HGEN,QV*QHVF
+  ALLSEL
+  LSEL,ALL
+  NSLL,S,1
+  SF,ALL,CONV,HF,%TBLB%
+  ALLSEL
+  SOLVE
+  FINISH
+
+  /POST1
+  SET,LAST
+
+  ASEL,S,AREA,,1
+  NSLA,S,1
+  NSORT,TEMP
+  *GET,TLV,SORT,0,MAX
+  *GET,NLV,SORT,0,IMAX
+  YLV = NY(NLV)
+
+  ALLSEL
+  ASEL,S,AREA,,2
+  NSLA,S,1
+  NSORT,TEMP
+  *GET,THV,SORT,0,MAX
+  *GET,NHV,SORT,0,IMAX
+  YHV = NY(NHV)
+
+  ALLSEL
+  NSORT,TEMP
+  *GET,TMIN,SORT,0,MIN
+
+  ALLSEL
+  *VGET,TN(1),NODE,ID(1),TEMP
+  *VFILL,RR(1),RAMP,RUN,0            ! fills the column with the run number
+
+  *CFOPEN,runs,csv,,APPEND
+  *VWRITE,RUN,LOAD,HF,TTOP,QV,TLV,YLV,THV,YHV,TMIN
+  (F5.0,',',F7.3,',',F7.1,',',F7.1,',',E12.5,',',F9.3,',',F9.4,',',F9.3,',',F9.4,',',F9.3)
+  *CFCLOS
+
+  *CFOPEN,snapshots,csv,,APPEND
+  *VWRITE,RR(1),ID(1),XN(1),YN(1),TN(1)
+  (F5.0,',',F8.0,',',E14.6,',',E14.6,',',E14.6)
+  *CFCLOS
+
+  *MSG,INFO,RUN,LOAD,HF,TLV,THV
+  Run %G: load %G pu, HF %G -> LV max %G C, HV max %G C
+ *ENDDO
+*ENDDO
+/OUT
+*MSG,INFO
+All runs finished. Files: runs.csv and snapshots.csv in the working directory.

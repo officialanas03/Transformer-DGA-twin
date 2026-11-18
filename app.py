@@ -9,6 +9,7 @@ import streamlit as st
 from dga.pipeline import load_diagnoser_or_none, diagnose_rules, diagnose_table, MAX_BATCH_ROWS
 from dga.rules.duval import classify_pct, ZONE_ORDER
 from dga.ageing.paper import dp_chendong
+from pathlib import Path
 from twin.thermal import ThermalParams, simulate
 from twin.ageing import (KineticAgeing, calibrate_A_from_life, arrhenius_factor,
                          relative_ageing_rate, remaining_life_hours, DP_END_OF_LIFE)
@@ -59,7 +60,7 @@ def draw_triangle(pct):
     ax.set_aspect("equal"); ax.axis("off"); ax.legend(loc="upper right", fontsize=7, markerscale=1.5)
     return fig
 
-tab1, tab_batch, tab2 = st.tabs(["DGA diagnosis", "Batch (CSV)", "Transformer twin"])
+tab1, tab_batch, tab2, tab3 = st.tabs(["DGA diagnosis", "Batch (CSV)", "Transformer twin", "Luo reproduction + twin"])
 
 # ---------------- Tab 1 ----------------
 with tab1:
@@ -203,3 +204,67 @@ with tab2:
         st.write(f"{note} Remaining time to DP {DP_END_OF_LIFE:.0f}: {rul:.1f} years from the measurement date.")
     else:
         st.write(note)
+
+# ---------------- Tab 3: Luo et al. reproduction and the digital-twin pipeline ----------------
+@st.cache_resource
+def get_surrogates():
+    """Filter surrogate, a finer-mesh 'truth' and a deliberately wrong-oil 'truth' (all from the ASSUMED model)."""
+    from twin.surrogate import WindingSurrogate
+    L, H = np.linspace(0.3, 1.4, 9), np.linspace(50, 110, 7)
+    return (WindingSurrogate(nz=60).fit_from_model(L, H),
+            WindingSurrogate(nz=80, nr_lv=12, nr_hv=16).fit_from_model(L, H),
+            WindingSurrogate(nz=60).fit_from_model(L, H, t_top=47.0))
+
+with tab3:
+    from twin import report as rp, ansys_io as ai, pipeline_dp as pdp
+    st.subheader("Reproduction of Luo et al. (2023): what is reproduced, fitted, or impossible")
+    st.info("Reproduced: levelling-off DP 252.13 vs 252.15 and Eq. 13. Fitted: Table 2 row I (one rate constant on year 1). "
+            "Impossible as printed: rows II and III (Eq. 11 gives k_DP <= 0 above about 0.62 % moisture), the 7.4x claim and the DP 250 target. "
+            "Rows II and III below are VARIANTS with assumed moisture, not the paper's method.")
+    st.dataframe(rp.luo_table2_frame())
+
+    st.subheader("ANSYS temperature export to DP (assumed geometry)")
+    st.warning("The bundled export comes from a placeholder two-winding model with a fitted film coefficient. In it the HV winding is hotter than "
+               "the LV winding, which contradicts the paper. This shows the pipeline, not a result about a real transformer.")
+    up3 = st.file_uploader("Your own ANSYS export (columns node,x_m,y_m,T_C), optional", type=["csv"], key="ansys_up")
+    try:
+        snap = ai.read_snapshot(up3 if up3 is not None else Path(__file__).parent / "examples" / "ansys" / "T_load0p74.csv")
+        yrs3 = st.slider("Years of operation at this temperature", 1, 60, 48)
+        var3 = st.selectbox("Moisture treatment", ["none", "eq13", "const0p70", "field"],
+                            format_func=lambda v: {"none": "temperature only (fitted rate)", "eq13": "VARIANT: moisture from Eq. 13",
+                                                   "const0p70": "VARIANT: constant 0.70 % moisture",
+                                                   "field": "VARIANT: moisture field (equilibrium shape scaled to Eq. 13)"}[v])
+        dm = pdp.dp_map_with_moisture(snap, yrs3) if var3 == "field" else pdp.dp_map_from_snapshot(snap, yrs3, var3)
+        hs = pdp.hot_spot_summary(dm)
+        c3 = st.columns(len(hs))
+        for col, (w, v) in zip(c3, hs.items()):
+            col.metric(f"{w} hottest node", f"{v['T']:.1f} C at {100 * v['y_rel']:.0f} % height", f"DP {v['DP']:.0f}", delta_color="off")
+        fig3, ax3 = plt.subplots(1, 2, figsize=(9, 4))
+        for a, col, ttl in [(ax3[0], "T_C", "temperature (C)"), (ax3[1], "DP", f"DP after {yrs3} years")]:
+            sc = a.scatter(dm.x_m, dm.y_m, c=dm[col], s=5); fig3.colorbar(sc, ax=a); a.set_title(ttl); a.set_xlabel("radius (m)"); a.set_ylabel("height (m)")
+        st.pyplot(fig3)
+    except Exception as e:
+        st.error(f"Could not process this file: {e}")
+
+    st.subheader("Live calibration on SYNTHETIC data")
+    st.warning("All sensor data here are invented. The filter adjusts the film coefficient so the model follows the hot-spot sensor. "
+               "If the model is wrong, it hides the error in the parameter: calibration is not validation.")
+    cc = st.columns(3)
+    drift = cc[0].slider("True film coefficient at the end (W/m2K; starts at 72)", 50.0, 90.0, 58.0)
+    qx3 = cc[1].select_slider("Filter process noise (per hour, log scale)", options=[1e-4, 3e-4, 1e-3, 3e-3, 1e-2], value=1e-3)
+    wrong = cc[2].checkbox("Make the model wrong (oil 7 K warmer in the 'truth')")
+    if st.button("Run the synthetic calibration"):
+        with st.spinner("Building surrogates and running the filter..."):
+            filt, truth_ok, truth_bad = get_surrogates()
+            hours3 = 24 * 30
+            out = rp.calibration_demo(filt, truth_bad if wrong else truth_ok, np.linspace(72.0, 72.0 if wrong else drift, hours3),
+                                      hours=hours3, qx=float(qx3))
+        m = st.columns(4)
+        m[0].metric("Hot-spot RMSE, filter (K)", f"{out['rmse_filter']:.2f}")
+        m[1].metric("Raw sensor noise (K)", f"{out['rmse_sensor']:.2f}")
+        m[2].metric("Uncalibrated model (K)", f"{out['rmse_uncal']:.2f}")
+        m[3].metric("Error at load 1.3 (K)", f"{out['overload_error']:+.1f}")
+        fig4, ax4 = plt.subplots(figsize=(8, 3.2))
+        ax4.plot(out["hf_true"], "k", label="true (hidden)"); ax4.plot(out["hf_est"], label="filter estimate")
+        ax4.set_xlabel("hour"); ax4.set_ylabel("film coefficient (W/m2K)"); ax4.set_title("SYNTHETIC data"); ax4.legend()
+        st.pyplot(fig4)
