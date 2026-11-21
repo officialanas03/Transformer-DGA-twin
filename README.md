@@ -49,7 +49,8 @@ rules-only mode (Duval, IEC, ageing indicators, twin) and data-dependent tests a
 | Luo reproduction | `reference/luo2023_numbers.csv`, `twin/paper_numbers.py`, `twin/moisture.py`, `twin/luo_chain.py`, `run_luo_table2.py` | Numbers printed in the paper with page references, moisture Eqs. 1-4 and 13, Table 2 chain with labelled variants |
 | Temperature field | `ansys/*.inp`, `twin/surface.py`, `twin/ansys_io.py`, `twin/thermal_fv.py`, `examples/ansys/` | APDL scripts (single load and batch), CSV readers, a numpy finite-volume solver of the same assumed model |
 | Twin layers | `twin/surrogate.py`, `twin/kalman.py`, `twin/synthetic.py`, `twin/pipeline_dp.py`, `twin/report.py` | POD surrogate, extended Kalman filter, SYNTHETIC data generators, hot-spot-to-DP pipeline |
-| App | `app.py` | Streamlit app: single sample, batch CSV, thermal/ageing core, Luo reproduction + twin tab |
+| Live twin and virtual rig | `twin/rig.py`, `twin/live.py`, `run_virtual_rig.py`, `docs/RIG.md` | SYNTHETIC simulation of a bench rig (coil in oil, probes with offsets, noise, dropouts), logger CSV format, estimator that updates itself as rows arrive, CSV follower for the real logger |
+| App | `app.py` | Streamlit app: single sample, batch CSV, thermal/ageing core, Luo reproduction + twin tab, Live rig tab |
 | Studies | `run_*.py`, `docs/make_figures.py` | Reproduce the results and figures below |
 
 ## Results
@@ -153,6 +154,27 @@ with plain (load, hf) a cubic fit was off by several kelvin. That accuracy is ag
 
 ![Synthetic calibration](docs/images/kalman_synthetic.png)
 
+### Live twin on a virtual rig (synthetic)
+
+`twin/rig.py` simulates the proposed bench rig (see `docs/RIG.md`): a heated, paper-wrapped coil in oil with six oil probes and three
+hot-spot thermocouples, each with a fixed offset, noise, quantisation and random dropouts, plus a hardware thermostat. It writes the
+same CSV the real logger will write. `twin/live.py` reads rows as they arrive (from the simulation, or from a CSV that a logger keeps
+appending to), re-estimates the film coefficient with the Kalman filter, predicts the three thermocouples and computes DP. No parameter
+is typed in: change what the simulated world does (the "cooling health" slider in the Live rig tab) and the estimate follows.
+
+![Live rig, synthetic](docs/images/live_rig_synthetic.png)
+
+What the tests and runs show (all on simulated data):
+* With ideal probes the estimate is within 1 % of the hidden film coefficient at five load levels; with uncalibrated probe offsets the error is 0.6 to 2.5 %
+  in the sweep and about 4.5 % in the figure above; giving the twin the true offsets (the calibration step on a real rig) brings it back to under 1 %.
+* A 30 % cooling fault is followed (hidden ratio 0.75, estimated 0.75), with no edit of any twin parameter.
+* A +2 K fault on a held-out thermocouple raises the held-out error from 0.15 K to 1.4 K and leaves the fitted estimate untouched.
+* The limit: with the paper resistance R_paper set twice too large the fitted thermocouple still agrees to about 0.1 K while h is off by about 49 %.
+  Calibration is not validation, and the printed standard deviation is statistical only.
+* The simulation's own numbers (steady 67 C at 1.0 pu and about 93 C at 1.3 pu, oil time constant about 2.1 h) come from ASSUMED constants listed in `docs/RIG.md`.
+
+Everything here is a model checked against its own simulated data. It shows that the pipeline works; it validates no physics, and the real logger firmware and the rig are not built.
+
 ### Twin demonstration (synthetic)
 
 ![Twin demo](docs/images/twin_demo.png)
@@ -185,6 +207,8 @@ measurement can overturn an assumed ageing rate; it says nothing about a real tr
 8. The DP chain uses a rate fitted to Table 2 row I, and moisture at the hot spot is an assumption; its DP maps are demonstrations, not predictions.
 9. The Streamlit tab and its smoke test (`tests/test_app.py`) were written without Streamlit installed in the authoring environment; they run in CI.
 10. The batch tab of a public deployment should not be used with confidential data.
+11. The virtual rig, its sensors and every number in the Live rig tab are SYNTHETIC; the rig is a proposed design, not built, and the logger firmware is not written.
+12. The Live rig tab was tested against a stand-in for Streamlit (`tests/test_live_tab_stub.py`); the real auto-refresh timer needs Streamlit 1.37 or later and was not run in the authoring environment.
 
 ## Key references
 

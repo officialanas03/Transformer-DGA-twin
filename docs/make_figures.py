@@ -158,3 +158,24 @@ ax.set_xlabel("DP at year 48 (moisture-field variant)"); ax.set_ylabel("relative
 ax.set_title("A wider temperature range fits Table 3 better but breaks the 1.3 pu check; all thermal models are placeholders", fontsize=7)
 fig.tight_layout(); fig.savefig(OUT / "thermal_sensitivity.png", dpi=150); plt.close(fig)
 print("wrote", sorted(p.name for p in OUT.glob("*.png")))
+
+# ---- 10. SYNTHETIC live rig: the estimate follows a cooling fault without any manual edit ----
+from twin.rig import VirtualRig as _VR
+from twin.live import LiveTwin as _LT
+_rig = _VR(schedule=[(36 * 3600.0, 1.0)], loop=False, seed=4, offset_scale=1.0)
+_tw = _LT(offsets=None)
+_tw.ingest_frame(_rig.advance(15 * 3600.0))
+_rig.h_scale = 0.7                                   # hidden cooling fault at hour 15
+_tw.ingest_frame(_rig.advance(21 * 3600.0))
+_h, _t = _tw.history_frame(), _rig.truth_frame()
+_x = _h.time_s / 3600.0
+fig, axs = plt.subplots(1, 3, figsize=(11, 3.3))
+axs[0].plot(_x, _h.meas_T_paper_top, lw=0.6, label="H1 measured"); axs[0].plot(_x, _h.pred_T_paper_top, lw=1.2, color="#e76f51", label="model")
+axs[0].set_ylabel("top thermocouple (C)")
+axs[1].plot(_x, _t.h_true, "k", label="true (hidden)"); axs[1].plot(_x, _h.hf, color="#e76f51", label="filter estimate"); axs[1].set_ylabel("film coefficient (W/m2K)")
+axs[2].plot(_x, _h.resid_T_paper_mid, lw=0.5, label="H2"); axs[2].plot(_x, _h.resid_T_paper_bot, lw=0.5, label="H3"); axs[2].set_ylabel("held-out residual (K)")
+for a in axs:
+    a.axvline(15, color="grey", ls=":"); a.set_xlabel("rig hour"); a.legend(fontsize=7)
+fig.suptitle("SYNTHETIC virtual rig (simulated coil, probes, offsets, noise): cooling drops 30% at hour 15 and the twin follows on its own.\nProbes are uncalibrated here, so the estimate sits a few percent above the hidden truth and the held-out residuals are biased", fontsize=8)
+fig.tight_layout(); fig.savefig(OUT / "live_rig_synthetic.png", dpi=150); plt.close(fig)
+print(f"fig10: film coefficient {_h.hf.iloc[int(14.9 * 360)]:.1f} before, {_h.hf.iloc[-1]:.1f} after; true {_t.h_true.iloc[int(14.9 * 360)]:.1f} -> {_t.h_true.iloc[-1]:.1f}")

@@ -12,3 +12,4 @@ jobs:
       - run: python -m compileall -q app.py twin dga
       - run: python -m pytest -q
       - run: python run_luo_table2.py
+      - run: python run_virtual_rig.py

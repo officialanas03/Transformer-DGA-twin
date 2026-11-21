@@ -60,7 +60,7 @@ def draw_triangle(pct):
     ax.set_aspect("equal"); ax.axis("off"); ax.legend(loc="upper right", fontsize=7, markerscale=1.5)
     return fig
 
-tab1, tab_batch, tab2, tab3 = st.tabs(["DGA diagnosis", "Batch (CSV)", "Transformer twin", "Luo reproduction + twin"])
+tab1, tab_batch, tab2, tab3, tab_live = st.tabs(["DGA diagnosis", "Batch (CSV)", "Transformer twin", "Luo reproduction + twin", "Live rig"])
 
 # ---------------- Tab 1 ----------------
 with tab1:
@@ -268,3 +268,103 @@ with tab3:
         ax4.plot(out["hf_true"], "k", label="true (hidden)"); ax4.plot(out["hf_est"], label="filter estimate")
         ax4.set_xlabel("hour"); ax4.set_ylabel("film coefficient (W/m2K)"); ax4.set_title("SYNTHETIC data"); ax4.legend()
         st.pyplot(fig4)
+
+# ---------------- Tab 5: live twin (virtual rig or a CSV from the real logger) ----------------
+with tab_live:
+    import time as _time
+    from twin import live as lv, rig as rg
+
+    st.subheader("Live twin: the estimate updates itself as new readings arrive")
+    st.caption("No parameter is typed in here. New rows arrive, the filter re-estimates the film coefficient, and the charts redraw. "
+               "The only knobs are for the SIMULATED rig (what the 'world' does), not for the twin.")
+    src = st.radio("Data source", ["Virtual rig (SYNTHETIC)", "Follow a CSV file"], horizontal=True, key="live_src")
+    ctl = st.columns(4)
+    if src.startswith("Virtual"):
+        sched = ctl[0].selectbox("Load schedule", list(rg.SCHEDULES), key="live_sched",
+                                 help="load_steps: 0.6, 1.0, 0.6, 1.3, 0.6 pu. sweep: 0.4 to 1.2 pu, 6 h each. daily: smooth 48 h profile.")
+        speed = ctl[1].select_slider("Speed (rig seconds per real second)", options=[60, 150, 300, 600, 1200, 2400], value=600, key="live_speed")
+        calib = ctl[2].checkbox("Probes calibrated (offsets known to the twin)", value=False, key="live_calib",
+                                help="Simulated probes carry fixed offsets. Ticking this gives the twin those offsets, as step B0 would.")
+        health = ctl[3].slider("Cooling health of the simulated rig (%)", 40, 100, 100, key="live_health",
+                               help="Scales the true film coefficient. Drag it while the run is going and watch the estimate follow.")
+    else:
+        path = ctl[0].text_input("CSV path (logger output)", value="rig_run.csv", key="live_path")
+        calib = False
+    years_live = st.slider("Years for the DP projection at the present hot-spot temperature", 1, 48, 10, key="live_years")
+
+    b = st.columns(3)
+    if b[0].button("Start", key="live_start"):
+        if st.session_state.get("live") is None:
+            if src.startswith("Virtual"):
+                source = lv.VirtualRigSource(schedule=sched, speed=float(speed), seed=11)
+                twin = lv.LiveTwin(years=years_live, offsets=source.rig.offsets if calib else None)
+            else:
+                source, twin = lv.CsvTailSource(path), lv.LiveTwin(years=years_live)
+            st.session_state["live"] = lv.LiveSession(source, twin)
+        st.session_state["live_running"] = True
+        st.session_state["live_last"] = _time.monotonic()
+    if b[1].button("Stop", key="live_stop"):
+        st.session_state["live_running"] = False
+    if b[2].button("Reset", key="live_reset"):
+        st.session_state["live"] = None
+        st.session_state["live_running"] = False
+
+    def live_panel():
+        ses = st.session_state.get("live")
+        if ses is None:
+            st.info("Press Start. The virtual rig plays a simulated heated coil in oil faster than real time. "
+                    "For a real rig, choose 'Follow a CSV file' and point it at the file the logger writes.")
+            return
+        if st.session_state.get("live_running"):
+            now = _time.monotonic()
+            dt = min(max(now - st.session_state.get("live_last", now), 0.0), 10.0)
+            st.session_state["live_last"] = now
+            if hasattr(ses.source, "rig"):
+                ses.source.rig.h_scale = st.session_state.get("live_health", 100) / 100.0
+            ses.step(dt)
+        if ses.synthetic:
+            st.warning("SYNTHETIC: every reading here is simulated, including sensor offsets, noise and dropouts. "
+                       "This shows that the pipeline works. It is not a measurement and it validates no physics.")
+        last = ses.latest()
+        if last is None:
+            st.write("Waiting for the first rows...")
+            return
+        run_state = "running" if st.session_state.get("live_running") else "stopped"
+        st.caption(f"{run_state} | rows {len(ses.rows)} | rig time {last['time_s'] / 3600:.2f} h | filter updates {ses.twin.n_updates} | status: {last['status']}")
+        m = st.columns(4)
+        m[0].metric("Film coefficient (W/m2K)", f"{last['hf']:.1f}", f"+/- {last['hf_sd']:.1f} (statistical only)", delta_color="off")
+        mt, pt = last.get("meas_T_paper_top", float("nan")), last.get("pred_T_paper_top", float("nan"))
+        m[1].metric("Top thermocouple H1 (C)", f"{mt:.1f}", f"model {pt:.1f}", delta_color="off")
+        ho = last.get("held_out_rms", float("nan"))
+        m[2].metric("Held-out error H2, H3 (K)", "n/a (settling)" if not np.isfinite(ho) else f"{ho:.2f}", help="H2 and H3 are not used by the filter.")
+        dp = last.get("dp_hot_spot", float("nan"))
+        m[3].metric(f"DP after {ses.twin.years} y at this temperature", "n/a" if not np.isfinite(dp) else f"{dp:.0f}", help="Model output from the Luo-style chain, moisture ignored.")
+        h = ses.twin.history_frame().tail(720)
+        h["hours"] = h["time_s"] / 3600.0
+        c1, c2 = st.columns(2)
+        c1.caption("Top thermocouple: measured and model (C)")
+        c1.line_chart(h.set_index("hours")[["meas_T_paper_top", "pred_T_paper_top"]], height=260)
+        hf_cols = h.set_index("hours")[["hf"]].rename(columns={"hf": "estimate"})
+        if ses.synthetic and hasattr(ses.source, "rig"):
+            tr = ses.source.rig.truth_frame().tail(len(h))
+            if len(tr) == len(h):
+                hf_cols["true (hidden, SYNTHETIC only)"] = tr["h_true"].to_numpy()
+        c2.caption("Film coefficient (W/m2K)")
+        c2.line_chart(hf_cols, height=260)
+        row = ses.rows.iloc[-1]
+        zs = list(rg.OIL_Z_MM)
+        fig_l, ax_l = plt.subplots(figsize=(4.2, 3.2))
+        ax_l.plot([row[f"T_oil_{i}"] - ses.twin.offsets.get(f"T_oil_{i}", 0.0) for i in range(1, 7)], zs, "o-", label="oil probes T1..T6")
+        ax_l.plot([row[c] - ses.twin.offsets.get(c, 0.0) for c in rg.HOT_Z_MM], list(rg.HOT_Z_MM.values()), "D", color="tab:red", label="paper thermocouples H3..H1")
+        ax_l.set_xlabel("temperature (C)"); ax_l.set_ylabel("height z (mm)"); ax_l.legend(fontsize=7)
+        st.pyplot(fig_l)
+        plt.close(fig_l)
+        if str(row.get("note", "")) == "THERMOSTAT_OPEN":
+            st.error("Thermostat is open: the heater is cut off.")
+
+    frag = getattr(st, "fragment", None)
+    if frag is not None:
+        frag(run_every=2 if st.session_state.get("live_running") else None)(live_panel)()
+    else:
+        st.button("Refresh", key="live_refresh")
+        live_panel()
